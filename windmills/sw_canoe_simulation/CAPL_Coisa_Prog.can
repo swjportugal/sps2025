@@ -1,0 +1,555 @@
+/*@!Encoding:1252*/
+includes
+{
+  
+}
+
+variables
+{
+  //Each Motor targeted RPMs
+  float targetedRPMS[3]; 
+
+  //Each Motor current RPMs.
+  float activeMotors[3];
+
+  //variable to wind down the motors gradually
+  float windDownExp;
+
+  //n of motors
+  int N_MOTORS = 3;
+  
+  //flag to wind up the motors only when the Mode 3 is set.
+  int windUpOnce;
+
+  //Lin Frame Control message
+  linFrame ControlMessage cM;
+}
+
+//--------------------------------------------------------------------------------------------------------------------
+//---------------------------------------------------- ON SIGNALS ----------------------------------------------------
+//--------------------------------------------------------------------------------------------------------------------
+
+
+//Changes label color according to its current StallMotorA value
+//0 - NoStall
+//1 - MotorStalled
+on signal StallMotorA
+{ 
+  if(this.raw64 == 1)
+  {
+    setControlBackColor("Coisa_Panel", "StallA", makeRGB(255,99,71)); //SalmonRed
+  }
+  
+  else
+  {
+    // if(@PanelControls::ModeType == 2)
+    // { 
+    //   SetAllMotorRPMs(@PanelControls::TargetRPM);
+    // }
+
+    setControlBackColor("Coisa_Panel", "StallA", makeRGB(236,236,236)); //Grey
+  } 
+  
+}
+
+//Changes label color according to its current StallMotorB value
+//0 - NoStall
+//1 - MotorStalled
+on signal StallMotorB
+{
+  if(this.raw64 == 1)
+  {
+    setControlBackColor("Coisa_Panel", "StallB", makeRGB(255,99,71)); //SalmonRed
+  }
+  
+  else
+  {
+  //   if(@PanelControls::ModeType == 2)
+  //   { 
+  //     SetAllMotorRPMs(@PanelControls::TargetRPM);
+  //   }
+
+    setControlBackColor("Coisa_Panel", "StallB", makeRGB(236,236,236)); //Grey
+  }
+}
+
+//Changes label color according to its current StallMotorC value
+//0 - NoStall
+//1 - MotorStalled
+on signal StallMotorC
+{
+  if(this.raw64 == 1)
+  {
+    setControlBackColor("Coisa_Panel", "StallC", makeRGB(255,99,71)); //SalmonRed
+  }
+  
+  else
+  {
+    // if(@PanelControls::ModeType == 2)
+    // { 
+    //   SetAllMotorRPMs(@PanelControls::TargetRPM);
+    // }
+
+    setControlBackColor("Coisa_Panel", "StallC", makeRGB(236,236,236));//Grey
+  }
+}
+
+
+//Changes label color according to its current ErrorCodeMotorA value
+on signal ErrorCodeMotorA
+{
+  switch(this.raw64)
+  {
+    
+    case 1://Motor Triped
+          setControlBackColor("Coisa_Panel", "ErrorA", makeRGB(255,99,71)); //SalmonRed
+          break;
+      
+    case 2://Motor Halted
+          setControlBackColor("Coisa_Panel", "ErrorA", makeRGB(255, 165, 0)); //Orange
+          break;
+      
+    case 3://Current Failure
+          setControlBackColor("Coisa_Panel", "ErrorA", makeRGB(255, 165, 0)); //Orange
+          break;
+    
+    default://No Error
+          setControlBackColor("Coisa_Panel", "ErrorA", makeRGB(236,236,236)); //Grey
+          break;
+  }
+}
+
+//Changes label color according to its current ErrorCodeMotorB value
+on signal ErrorCodeMotorB
+{ 
+  switch(this.raw64)
+  {
+    
+    case 1://Motor Triped
+          setControlBackColor("Coisa_Panel", "ErrorB", makeRGB(255,99,71)); //SalmonRed
+          break;
+      
+    case 2://Motor Halted
+          setControlBackColor("Coisa_Panel", "ErrorB", makeRGB(255, 165, 0)); //Orange
+          break;
+      
+    case 3://Current Failure
+          setControlBackColor("Coisa_Panel", "ErrorB", makeRGB(255, 165, 0)); //Orange
+          break;
+    
+    default://No Error
+          setControlBackColor("Coisa_Panel", "ErrorB", makeRGB(236,236,236)); //Grey
+          break;
+  }
+}
+
+//Changes label color according to its current ErrorCodeMotorC value
+on signal ErrorCodeMotorC
+{
+  switch(this.raw64)
+  {
+    
+    case 1://Motor Triped
+          setControlBackColor("Coisa_Panel", "ErrorC", makeRGB(255,99,71)); //SalmonRed
+          break;
+      
+    case 2://Motor Halted
+          setControlBackColor("Coisa_Panel", "ErrorC", makeRGB(255,165,0)); //Orange
+          break;
+      
+    case 3://Current Failure
+          setControlBackColor("Coisa_Panel", "ErrorC", makeRGB(255,165,0)); //Orange
+          break;
+    
+    default://No Error
+          setControlBackColor("Coisa_Panel", "ErrorC", makeRGB(236,236,236)); //Grey
+          break;
+  }
+}
+
+on linFrame StatusMessage
+{
+  if(@PanelControls::ModeType == 1)
+  {
+    ConstantSUM();
+  }
+  
+  else if(@PanelControls::ModeType == 3)
+  {
+    WindUpRPM();
+  }
+  
+  //SetModeType();
+}
+
+//sets TargetRPMs::MotorA according to the signal MotorATargetRPM
+on signal MotorATargetRPM
+{
+  @TargetRPMs::MotorA = this.raw64;
+}
+
+//sets TargetRPMs::MotorB according to the signal MotorBTargetRPM
+on signal MotorBTargetRPM
+{
+  @TargetRPMs::MotorB = this.raw64;
+}
+
+//sets TargetRPMs::MotorC according to the signal MotorCTargetRPM
+on signal MotorCTargetRPM
+{
+  @TargetRPMs::MotorC = this.raw64; 
+}
+
+//sets the current RPM motor to the designated variables
+//also controls the other fans' behavior to match its own RPM on Mode 2
+//Motor A is the master fan that controls the other fans.
+on signal MotorACurrent_RPM
+{
+  @CurrentRPMs::MotorA = this.raw64;
+  
+  activeMotors[0] = @CurrentRPMs::MotorA;
+  
+  if(@PanelControls::ModeType == 2 /*&& @PanelControls::TargetRPM - @TargetRPMs::MotorA > 5*/)
+  {
+   SetSingleMotorRPM(1,@CurrentRPMs::MotorA);
+   SetSingleMotorRPM(2,@CurrentRPMs::MotorA);
+  }
+}
+
+//sets the current RPM motor to the designated variables
+on signal MotorBCurrent_RPM
+{
+  @CurrentRPMs::MotorB = this.raw64;
+  
+  activeMotors[1] = @CurrentRPMs::MotorB;
+
+  // if(@PanelControls::ModeType == 2)
+  // {
+  //   SetSingleMotorRPM(0,@CurrentRPMs::MotorB);
+  //   SetSingleMotorRPM(2,@CurrentRPMs::MotorB);
+  // }
+}
+
+//sets the current RPM motor to the designated variables
+on signal MotorCCurrent_RPM
+{
+  @CurrentRPMs::MotorC = this.raw64;
+  
+  activeMotors[2] = @CurrentRPMs::MotorC;
+
+  // if(@PanelControls::ModeType == 2)
+  // {
+  //   SetSingleMotorRPM(0,@CurrentRPMs::MotorC);
+  //   SetSingleMotorRPM(1,@CurrentRPMs::MotorC);
+  // }
+}
+
+//sets @Current_mA::MotorA_mA according to the signal MotorACurrent_mA
+on signal MotorACurrent_mA
+{
+  @Current_mA::MotorA_mA = this.raw64;
+}
+
+//sets @Current_mA::MotorB_mA according to the signal MotorBurrent_mA
+on signal MotorBCurrent_mA
+{
+  @Current_mA::MotorB_mA = this.raw64;
+}
+
+//sets @Current_mA::MotorC_mA according to the signal MotorCCurrent_mA
+on signal MotorCCurrent_mA
+{
+  @Current_mA::MotorC_mA = this.raw64;
+}
+
+//-------------------------------------------------------------------------------------------------------------------
+//---------------------------------------------------- FUNCTIONS ----------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+//Returns number of active motors ( > 0 RPMs)
+int GetActiveMotors()
+{
+  int counter;
+  int i;
+  
+  counter = 0;
+  
+  for(i = 0; i<N_MOTORS; i++)
+  {
+    if(activeMotors[i] > 0)
+    {
+      counter++;
+    }
+  }
+  
+  return counter;
+}
+
+//Divides the targeted RPM for each motor to set the targetedRPMS[] variable
+//This does not modify the motors RPMs!!!!
+void DivideRPMEachMotor()
+{
+  float RPMs;
+  
+    //if total target is > 750 (750/3 = 250), set max to 250
+  if(@PanelControls::TargetRPM > 750)
+  {
+    @PanelControls::TargetRPM = 750;
+  }
+  
+  
+  RPMs = @PanelControls::TargetRPM / 3;
+
+  targetedRPMS[0] = RPMs;
+  targetedRPMS[1] = RPMs;
+  targetedRPMS[2] = RPMs;
+}
+
+//Sets same RPM to targetedRPMS[] variable
+//This does not modify the motors RPMS!!!
+void EqualMotorRPM()
+{
+  if(@PanelControls::TargetRPM > 250)
+  {
+    @PanelControls::TargetRPM = 250;
+  }
+  
+  targetedRPMS[0] = @PanelControls::TargetRPM;
+  targetedRPMS[1] = @PanelControls::TargetRPM;
+  targetedRPMS[2] = @PanelControls::TargetRPM;
+  
+  //SetModeType();
+  //SetAllMotorRPMs(@PanelControls::TargetRPM);
+}
+
+//Depending on the selected mode, simply execute the desired functions
+void DynamicTarget()
+{  
+  if(@PanelControls::ModeType == 0 || @PanelControls::ModeType == 1)
+  {
+    DivideRPMEachMotor();
+    SetModeType();
+  }
+  
+  else if(@PanelControls::ModeType == 2 || @PanelControls::ModeType == 3)
+  {
+   EqualMotorRPM(); 
+   SetModeType();
+  }
+}
+
+//Sets the RPM for a specific single Motor
+void SetSingleMotorRPM(int p_Motor,float p_RPM)
+{
+  switch(p_Motor)
+  {
+    case 0:
+          cM.MotorATargetRPM = p_RPM;
+          break;
+      
+    case 1:
+          cM.MotorBTargetRPM = p_RPM;
+          break;
+      
+    case 2:
+          cM.MotorCTargetRPM = p_RPM;
+          break;
+  }
+  
+  output(cM);
+}
+
+//Sets the same RPM to all motors
+void SetAllMotorRPMs(float p_RPM)
+{
+  cM.MotorATargetRPM =  p_RPM;
+  cM.MotorBTargetRPM =  p_RPM;
+  cM.MotorCTargetRPM =  p_RPM;
+  output(cM);
+}
+
+//Verifies which ModeType is selected and executes its related function
+void SetModeType()
+{
+  switch(@PanelControls::ModeType)
+  {
+    case 0://sets DividedRPM mode
+          DividedRPM();
+          break;
+      
+    case 1://sets ConstantSUM mode
+          windUpOnce = 0;
+          ConstantSUM();
+          break;  
+      
+    case 2://sets EqualRPM mode
+          SetAllMotorRPMs(@PanelControls::TargetRPM);
+          //no need to specify a function here because the behavior of EqualRPM mode is 
+          //done dynamically each time we listen for the signal of current RPMs of each motor.
+          break;
+      
+    case 3://sets EqualRPM mode
+          windUpOnce = 0;
+          WindUpRPM();
+          break;
+      
+    default:
+          break;
+  }
+}
+
+//DividedRPM Mode
+//Gets the TotalTargetRPM, divides by 3 (n of motors) and 
+//sets the result to all motors
+void DividedRPM()
+{
+  float divRPM = 0;
+  
+  divRPM = @PanelControls::TargetRPM / 3;
+  
+  SetAllMotorRPMs(divRPM);
+}
+
+//Distributes the RPM equally among the fans to maintain the total target RPM
+void ConstantSUM()
+{
+  int toleranceRPMs;
+  int sumRPMs;
+  int nActiveMotors;
+  int i;
+  float adjustRPMs;
+  float adjustRPMs2;
+
+  if(windUpOnce == 0)
+  {
+    DivideRPMEachMotor();
+    SetAllMotorRPMs(@PanelControls::TargetRPM);
+    windUpOnce = 1;
+  }
+
+  
+  sumRPMs = activeMotors[0] + activeMotors[1] + activeMotors[2];
+  
+  Write("SUM RPMs = %d", sumRPMs);
+  
+  toleranceRPMs = @PanelControls::TargetRPM - sumRPMs;
+  
+  Write("tolerance RPMs = %d", toleranceRPMs);
+  
+  nActiveMotors = GetActiveMotors();
+  //Write("n Active Motors = %d", nActiveMotors);
+  
+  Write("Motor A targeted RPM = %f", targetedRPMS[0]);
+  Write("Motor B targeted RPM = %f", targetedRPMS[1]);
+  Write("Motor C targeted RPM = %f", targetedRPMS[2]);
+ 
+  Write("Motor A recorded RPM = %f", activeMotors[0]);
+  Write("Motor B recorded RPM = %f", activeMotors[1]);
+  Write("Motor C recorded RPM = %f", activeMotors[2]);
+  
+  if(nActiveMotors !=0)
+  {
+    adjustRPMs = @PanelControls::TargetRPM / nActiveMotors;
+    Write("adjustRPMS = %f", adjustRPMs);
+
+    for(i = 0; i<N_MOTORS; i++)
+    {
+      if(activeMotors[i] >= targetedRPMS[i])
+      {
+        activeMotors[i] = adjustRPMs;
+        SetSingleMotorRPM(i, activeMotors[i]);
+      }
+       
+      else
+      {
+        SetSingleMotorRPM(i, targetedRPMS[i]);
+      }
+      
+      //this if descreases RPMs of other fans when one is being sped up manually
+//      if(@Current_mA::MotorA_mA == 0 && (sumRPMs > @PanelControls::TargetRPM + 5 || sumRPMs < @PanelControls::TargetRPM - 5))
+//      {
+//        adjustRPMs2 = toleranceRPMs / nActiveMotors;
+//        activeMotors[i] = activeMotors[i] + adjustRPMs2;
+//        SetSingleMotorRPM(i, activeMotors[i]);
+//      }
+    } 
+  }
+  
+}
+
+//WindUpRPM Mode
+//Motor A is the master fan that controls the other fans.
+void WindUpRPM()
+{
+  int i;
+  
+  if(windUpOnce == 0)
+  {
+    EqualMotorRPM();
+    SetAllMotorRPMs(@PanelControls::TargetRPM);
+    windUpOnce = 1;
+  }
+ 
+  for(i = 0; i<N_MOTORS; i++)
+  {
+    if(activeMotors[i] == 0)
+    {
+      windDownExp = 0;
+    }
+
+    windDownExp += 0.000001;
+    SetAllMotorRPMs(activeMotors[i] - windDownExp);
+    break;
+
+  }
+}
+
+
+//-------------------------------------------------------------------------------------------------------------------
+//---------------------------------------------------- EVENT HANDLERS -----------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------
+
+//executes SetModeType() whenever the value of TargetRPM is changed
+on sysvar PanelControls::TargetRPM
+{   
+  DynamicTarget(); 
+}
+
+//Sets Motor On or Off whenever the user starts the measurement (clicks start on CANoe)
+//0 - motor off
+//1 - motor on
+on sysvar PanelControls::MotorOnOff
+{
+  cM.Mode =  @PanelControls::MotorOnOff;
+  output(cM);
+}
+
+//executes SetModeType() whenever the ModeType is changed
+on sysvar PanelControls::ModeType
+{
+  SetModeType();
+}
+
+//executes on start measurement
+on start 
+{
+  @PanelControls::LEDIndicator = 1;
+  @PanelControls::MotorOnOff = 1; //Mode 1 ClosedLoop, Mode 2 Direct
+  DynamicTarget();
+}
+
+//executes immediately before the stop measurement takes effect
+on preStop
+{
+  @PanelControls::LEDIndicator = 0;
+  @PanelControls::MotorOnOff = 0;
+  deferStop(100);
+}
+
+//executes upon stopping the measurement
+on stopMeasurement
+{
+
+}
+
+

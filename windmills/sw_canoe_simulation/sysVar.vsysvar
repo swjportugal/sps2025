@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<systemvariables version="4">
+  <namespace name="" comment="" interface="">
+    <namespace name="Coisa" comment="" interface="">
+      <variable anlyzLocal="2" readOnly="false" valueSequence="false" unit="" name="ModeValue" comment="" bitcount="32" isSigned="true" encoding="65001" type="int">
+        <valuetable name="ModeValue" definesMinMax="false">
+          <valuetableentry value="0" lowerBound="0" upperBound="0" description="Off" displayString="Off" />
+          <valuetableentry value="1" lowerBound="1" upperBound="1" description="On" displayString="On" />
+        </valuetable>
+      </variable>
+    </namespace>
+  </namespace>
+</systemvariables>

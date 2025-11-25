@@ -1,0 +1,131 @@
+// LIN Description File 
+
+
+LIN_description_file;
+LIN_protocol_version = "2.1" ;
+LIN_language_version = "2.1" ;
+LIN_speed = 19.2 kbps ;
+
+Nodes{	Master: CyclonePIL, 5.0ms, 0.1ms;
+Slaves: MotorControlBoard ;
+}
+
+Signals{
+	MotorATargetRPM: 10, 0, CyclonePIL, MotorControlBoard ;
+	MotorBTargetRPM: 10, 0, CyclonePIL, MotorControlBoard ;
+	MotorCTargetRPM: 10, 0, CyclonePIL, MotorControlBoard ;
+	MotorACurrent_RPM: 10, 255, MotorControlBoard, CyclonePIL ;
+	MotorBCurrent_RPM: 10, 255, MotorControlBoard, CyclonePIL ;
+	MotorCCurrent_RPM: 10, 255, MotorControlBoard, CyclonePIL ;
+	Mode: 3, 0, CyclonePIL, MotorControlBoard ;
+	ErrorCodeMotorA: 2, 3, MotorControlBoard, CyclonePIL ;
+	StallMotorA: 1, 0, MotorControlBoard, CyclonePIL ;
+	MotorACurrent_mA: 8, 255, MotorControlBoard, CyclonePIL ;
+	MotorBCurrent_mA: 8, 255, MotorControlBoard, CyclonePIL ;
+	MotorCCurrent_mA: 8, 255, MotorControlBoard, CyclonePIL ;
+	StallMotorB: 1, 0, MotorControlBoard, CyclonePIL ;
+	StallMotorC: 1, 0, MotorControlBoard, CyclonePIL ;
+	ErrorCodeMotorB: 2, 3, MotorControlBoard, CyclonePIL ;
+	ErrorCodeMotorC: 2, 3, MotorControlBoard, CyclonePIL ;
+	ReservedStatus: 1, 1, MotorControlBoard, CyclonePIL ;
+	ReservedControl1: 8, 0, CyclonePIL, MotorControlBoard ;
+	ReservedControl2: 8, 0, CyclonePIL, MotorControlBoard ;
+	ResevedControl3: 8, 0, CyclonePIL, MotorControlBoard ;
+	ReservedControl4: 5, 0, CyclonePIL, MotorControlBoard ;
+}
+
+Frames{
+	ControlMessage: 10, CyclonePIL, 8{
+		MotorATargetRPM, 0;
+		MotorBTargetRPM, 10;
+		MotorCTargetRPM, 20;
+		Mode, 31;				//1 bit for free
+		ReservedControl1, 34;
+		ReservedControl2, 42;
+		ResevedControl3, 50;
+		ReservedControl4, 58;
+	}
+	StatusMessage: 11, MotorControlBoard, 8{
+		MotorACurrent_RPM, 0;
+		MotorBCurrent_RPM, 10;
+		MotorCCurrent_RPM, 20;
+		MotorACurrent_mA, 30;
+		MotorBCurrent_mA, 38;
+		MotorCCurrent_mA, 46;
+		StallMotorA, 54;
+		StallMotorB, 55;
+		StallMotorC, 56;
+		ErrorCodeMotorA, 57;
+		ErrorCodeMotorB, 59;
+		ErrorCodeMotorC, 61;
+		ReservedStatus, 63;
+	}
+}
+
+
+
+
+Node_attributes {
+	MotorControlBoard{
+		LIN_protocol = "2.1" ;
+		configured_NAD = 0x1 ;
+		initial_NAD = 0x1 ;
+		product_id = 0x0, 0x0, 0x28 ;
+		response_error = ErrorCodeMotorA;
+		P2_min = 50 ms ;
+		ST_min = 0 ms ;
+		N_As_timeout = 1000 ms ;
+		N_Cr_timeout = 1000 ms ;
+		configurable_frames{
+			ControlMessage ;
+		}
+	}
+}
+
+Schedule_tables {
+ NormalConditions{
+	ControlMessage delay 25 ms ;
+	StatusMessage delay 25 ms ;
+ }
+}
+Signal_encoding_types {
+	MotorRPM{
+		physical_value, 0, 1022, 1, 0, "RPM" ;
+		logical_value, 1023, "Unitialized" ;
+	}
+	Mode{
+		logical_value, 0, "Off" ;
+		logical_value, 1, "On" ;
+		logical_value, 2, "Reserved" ;
+		logical_value, 3, "Reserved" ;
+		logical_value, 4, "Reserved" ;
+		logical_value, 5, "Reserved" ;
+		logical_value, 6, "Reserved" ;
+		logical_value, 7, "Reserved" ;
+	}
+	ErrorCodeMotor{
+		logical_value, 0, "No Error" ;
+		logical_value, 1, "Error 1" ;
+		logical_value, 2, "Error 2" ;
+		logical_value, 3, "Uninitialized" ;
+	}
+	CurrentMotor{
+		physical_value, 0, 254, 1, 0, "mA" ;
+		logical_value, 255, "Uninitialized" ;
+	}
+	Stall{
+		logical_value, 0, "No Stall" ;
+		logical_value, 1, "Motor Stalled" ;
+	}
+	Reserved{
+		physical_value, 0, 0, 1, 0 ;
+	}
+}
+Signal_representation {
+	MotorRPM: MotorATargetRPM, MotorBTargetRPM, MotorCTargetRPM, MotorACurrent_RPM, MotorBCurrent_RPM, MotorCCurrent_RPM ;
+	Mode: Mode ;
+	ErrorCodeMotor: ErrorCodeMotorA, ErrorCodeMotorB, ErrorCodeMotorC ;
+	CurrentMotor: MotorACurrent_mA, MotorBCurrent_mA, MotorCCurrent_mA ;
+	Stall: StallMotorA, StallMotorB, StallMotorC ;
+	Reserved: ReservedStatus, ReservedControl1, ReservedControl2, ResevedControl3, ReservedControl4 ;
+}
